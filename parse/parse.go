@@ -1,8 +1,8 @@
 package parse
 
 import (
+	"fmt"
 	"log"
-	"sync"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -11,51 +11,56 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 )
 
-var globalProtoMap map[string]*desc.FileDescriptor
-var IsCached = true
-var lk sync.RWMutex
+func updateProto(fname string) {
+	fpath := fmt.Sprintf("%s/%s", CONF_PATH, fname)
+	p := protoparse.Parser{}
+	fds, err := p.ParseFiles(fpath)
+	if err != nil {
+		log.Println("loadProto ParseFiles error:%v", err)
+		return
+	}
+	fd := fds[0]
 
-func init() {
-	globalProtoMap = make(map[string]*desc.FileDescriptor)
+	lk.Lock()
+	defer lk.Unlock()
+	globalProtoMap[fpath] = fd
 }
 
-func getProto(path string) *desc.FileDescriptor {
+func loadProto(fname string) *desc.FileDescriptor {
 	lk.Lock()
 	defer lk.Unlock()
 
-	if IsCached {
-		fd, ok := globalProtoMap[path]
-		if ok {
-			log.Println("getProto path:%v cached", path)
-			return fd
-		}
+	fpath := fmt.Sprintf("%s/%s", CONF_PATH, fname)
+	fd, ok := globalProtoMap[fpath]
+	if ok {
+		log.Println("loadProto path:%s cached", fpath)
+		return fd
 	}
+
 	p := protoparse.Parser{}
-	fds, err := p.ParseFiles(path)
+	fds, err := p.ParseFiles(fpath)
 	if err != nil {
-		log.Println("getProto ParseFiles error:%v", err)
+		log.Println("loadProto ParseFiles error:%v", err)
 		return nil
 	}
 	log.Println("JsonToPb fd %v, err %v", fds[0], err)
-	fd := fds[0]
+	fd = fds[0]
 
-	if IsCached {
-		globalProtoMap[path] = fd
-	}
-
+	globalProtoMap[fpath] = fd
 	return fd
 }
 
-func JsonToPb(protoPath, messageName string, jsonStr []byte) ([]byte, error) {
-	fd := getProto(protoPath)
+func JsonToPb(protoFname, messageName string, jsonStr []byte) ([]byte, error) {
+	fd := loadProto(protoFname)
 	msg := fd.FindMessage(messageName)
 	dymsg := dynamic.NewMessage(msg)
 	err := dymsg.UnmarshalJSON(jsonStr)
 	if err != nil {
 		log.Println("JsonToPb UnmarshalJSON error:%v", err)
-		return nil, nil
+		return nil, err
 	}
-
+	jsval, _ := dymsg.MarshalJSON()
+	log.Println("JsonToPb jsval:", string(jsval))
 	any, err := ptypes.MarshalAny(dymsg)
 	if err != nil {
 		log.Println("JsonToPb MarshalAny error:%v", err)
@@ -65,7 +70,7 @@ func JsonToPb(protoPath, messageName string, jsonStr []byte) ([]byte, error) {
 }
 
 func PbToJson(protoPath, messageName string, protoData []byte) ([]byte, error) {
-	fd := getProto(protoPath)
+	fd := loadProto(protoPath)
 	msg := fd.FindMessage(messageName)
 	dymsg := dynamic.NewMessage(msg)
 

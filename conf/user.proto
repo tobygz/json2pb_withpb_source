@@ -10,7 +10,8 @@ message Book {
 
 message UserInfo {
 	string username = 1;
-	uint32 age      = 2;
+	uint32 age1      = 2;
 	string graduate = 3;
 	repeated Book bookList = 4;
+	//string addv = 5;
 }

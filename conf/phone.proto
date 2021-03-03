@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package user_info;
+
+message Phone {
+	string name =1;
+	uint32 price = 2;
+}
+
+

@@ -4,12 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"main/parse"
 	"main/user_info"
+	"net/http"
 	"os"
-
-	"google.golang.org/protobuf/proto"
 )
+
+func httpHandler(w http.ResponseWriter, r *http.Request) {
+	testJsonToPb()
+	fmt.Fprintf(w, "htllo")
+}
+
+func main() {
+	parse.StartMonitor()
+
+	http.HandleFunc("/", httpHandler)
+	http.ListenAndServe(":8081", nil)
+}
 
 func getFileContent(path string) (body []byte, err error) {
 	file, err := os.Open(path)
@@ -21,46 +33,58 @@ func getFileContent(path string) (body []byte, err error) {
 	return
 }
 
-func test() {
-
+func genJson() {
+	ui := &user_info.UserInfo{
+		Username: "name",
+		Age:      uint32(188),
+		Graduate: "college",
+	}
+	ui.BookList = append(ui.BookList, &user_info.Book{
+		Name:    "China Book",
+		PageNum: 1900,
+	})
+	ui.BookList = append(ui.BookList, &user_info.Book{
+		Name:    "Japan Book",
+		PageNum: 1901,
+	})
+	jsret, _ := json.Marshal(ui)
+	fmt.Println("json:", string(jsret))
 }
 
-func main() {
-	gene_json := false
+func test() {
+	//path := "/Users/yuandan_15/Documents/test/protojson/json2pb_withpb_source/conf"
+	//parse.GetAllFile(path, nil)
+	mp := make(map[string]*parse.ConfInfo)
+	mp["First"] = &parse.ConfInfo{
+		Name: "First",
+	}
+	mp["Second"] = &parse.ConfInfo{
+		Name: "Second",
+	}
 
-	if gene_json {
-		ui := &user_info.UserInfo{
-			Username: "name",
-			Age:      uint32(188),
-			Graduate: "college",
-		}
-		ui.BookList = append(ui.BookList, &user_info.Book{
-			Name:    "China Book",
-			PageNum: 1900,
-		})
-		ui.BookList = append(ui.BookList, &user_info.Book{
-			Name:    "Japan Book",
-			PageNum: 1901,
-		})
-		jsret, _ := json.Marshal(ui)
-		fmt.Println("json:", string(jsret))
+	mp1 := make(map[string]*parse.ConfInfo)
+	for k, v := range mp {
+		mp1[k] = v
+	}
+	mp1["First"].Name = "1111First"
+	mpJson, _ := json.Marshal(mp)
+	log.Println("result:", string(mpJson))
+}
+
+func testJsonToPb() {
+	f, err := os.Open("./user.json")
+	if err != nil {
+		panic(err)
+		return
+	}
+	defer f.Close()
+	content, err := ioutil.ReadAll(f)
+
+	pbobjBin, err := parse.JsonToPb("user.proto", "user_info.UserInfo", content)
+	if err != nil {
+		log.Println("testJsonToPb err:", err)
 		return
 	}
 
-	//convert json with proto desc to obj
-	pbfile := "/Users/yuandan_15/Documents/test/protojson/src/user_info/user.proto"
-
-	jsonContent := `{"username":"name","age":188,"graduate":"college","bookList":[{"name":"China Book","pageNum":1900},{"name":"Japan Book","pageNum":1901}]}`
-	pbobjBin, err := parse.JsonToPb(pbfile, "user_info.UserInfo", []byte(jsonContent))
-	if err != nil {
-		panic(err)
-	}
-
-	pbObj := &user_info.UserInfo{}
-	err = proto.Unmarshal(pbobjBin, pbObj)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("last:")
-	fmt.Println(pbObj)
+	log.Println(pbobjBin)
 }
